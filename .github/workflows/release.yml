@@ -24,6 +24,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Check source-only repository
         run: python packaging/check_source_tree.py
       - name: Install Linux dependencies
@@ -49,6 +51,9 @@ jobs:
         run: cmake -S . -B build -A x64
       - name: Build
         run: cmake --build build --config Release --parallel 4
+      - name: Read tag-derived version
+        id: version
+        run: python packaging/export_version.py build/version.json
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
         env:
@@ -62,7 +67,7 @@ jobs:
       - name: Upload runtime directory
         uses: actions/upload-artifact@v4
         with:
-          name: lighter-${{ matrix.platform }}-x64-portable
+          name: lighter-${{ steps.version.outputs.version }}-${{ matrix.platform }}-x64-portable
           path: stage/
           retention-days: 7
           if-no-files-found: error
@@ -70,7 +75,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@v4
         with:
-          name: lighter-${{ matrix.platform }}-x64
+          name: lighter-${{ steps.version.outputs.version }}-${{ matrix.platform }}-x64
           retention-days: 7
           if-no-files-found: error
           path: |

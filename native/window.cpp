@@ -1,6 +1,7 @@
 #include "window.h"
 #include "editor.h"
 #include "theme.h"
+#include "lighter/version.h"
 #include <QtWidgets>
 #include <QtConcurrent>
 #include <QFutureWatcher>

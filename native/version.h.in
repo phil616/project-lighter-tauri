@@ -1,0 +1,5 @@
+#pragma once
+// Generated from Git tags by CMake. Do not edit the build-tree copy.
+#define LIGHTER_VERSION "@LIGHTER_VERSION@"
+#define LIGHTER_VERSION_TAG "@LIGHTER_VERSION_TAG@"
+#define LIGHTER_GIT_COMMIT "@LIGHTER_GIT_COMMIT@"

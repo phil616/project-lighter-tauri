@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.21)
-project(DreamReflexLighter VERSION 2.0.1 LANGUAGES CXX)
+set(LIGHTER_VERSION_OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/version.json")
+include(cmake/Version.cmake)
+project(DreamReflexLighter VERSION "${LIGHTER_VERSION}" LANGUAGES CXX)
+configure_file(native/version.h.in generated/lighter/version.h @ONLY)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
@@ -16,12 +19,7 @@ add_library(lighter_ui native/window.cpp native/editor.cpp native/theme.cpp
   native/vendor/qdarkstyle/dark/darkstyle.qrc
   native/vendor/qdarkstyle/light/lightstyle.qrc)
 target_link_libraries(lighter_ui PUBLIC lighter_core Qt6::Widgets)
-execute_process(COMMAND git rev-parse --short HEAD WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  OUTPUT_VARIABLE LIGHTER_GIT_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
-if(NOT LIGHTER_GIT_COMMIT)
-  set(LIGHTER_GIT_COMMIT "source")
-endif()
-target_compile_definitions(lighter_ui PRIVATE LIGHTER_VERSION="${PROJECT_VERSION}" LIGHTER_GIT_COMMIT="${LIGHTER_GIT_COMMIT}")
+target_include_directories(lighter_ui PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/generated")
 qt_add_executable(lighter WIN32 native/main.cpp native/resources.qrc)
 target_link_libraries(lighter PRIVATE lighter_ui)
 if(WIN32)
@@ -39,6 +37,16 @@ if(BUILD_TESTING)
   target_link_libraries(lighter_tests PRIVATE lighter_ui Qt6::Test Qt6::Network)
   add_test(NAME lighter_tests COMMAND lighter_tests)
   set_tests_properties(lighter_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+  add_test(NAME lighter_version COMMAND lighter --version)
+  string(REPLACE "." "\\." _version_pattern "${LIGHTER_VERSION}")
+  set_tests_properties(lighter_version PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    PASS_REGULAR_EXPRESSION "DreamReflexLighter ${_version_pattern}")
+  get_filename_component(_make_bin "${CMAKE_MAKE_PROGRAM}" DIRECTORY)
+  add_test(NAME tag_version COMMAND "${CMAKE_COMMAND}"
+    "-DVERSION_MODULE=${CMAKE_CURRENT_SOURCE_DIR}/cmake/Version.cmake"
+    "-DTEST_BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}"
+    "-DTEST_MAKE_BIN=${_make_bin}" -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_version.cmake")
 endif()
 include(GNUInstallDirs)
 set(CMAKE_INSTALL_DEFAULT_DIRECTORY_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
@@ -46,6 +54,7 @@ install(TARGETS lighter RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
   PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 install(FILES native/vendor/qdarkstyle/LICENSE.rst native/vendor/qdarkstyle/NOTICE.md
   DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/lighter/qdarkstyle)
+install(FILES "${LIGHTER_VERSION_OUTPUT}" DESTINATION ${CMAKE_INSTALL_DATADIR}/lighter)
 if(WIN32)
   qt_generate_deploy_app_script(TARGET lighter OUTPUT_SCRIPT deploy_script NO_UNSUPPORTED_PLATFORM_ERROR)
   install(SCRIPT ${deploy_script})

@@ -52,7 +52,7 @@ git diff --cached --check
 
 在 GitHub Actions 中手动运行 **Windows Portable Build**。该工作流使用 Qt 6.8.3 和 MinGW 13.1，
 完成源码检查、编译和测试后，收集 exe、Qt DLL、编译器运行库、平台插件及许可，上传整个运行目录。
-下载并解压 `lighter-windows-x64-portable`，双击 `bin/lighter.exe`。
+下载并解压 `lighter-<版本>-windows-x64-portable`，双击 `bin/lighter.exe`。
 
 常规推送和 PR 的 Qt 工作流也会上传运行目录。创建 `v*` 标签时，发布工作流才额外生成
 安装包并发布到 GitHub Releases；所有产物均位于 Actions/Release 下载区，不进入 Git 源码历史。

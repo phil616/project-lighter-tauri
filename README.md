@@ -19,12 +19,17 @@ C++17 + **Qt 6 Widgets** 原生多项目启动器。界面、配置和进程管�
 
 ## 构建与启动
 
-要求：CMake 3.21+、C++17 编译器、Qt 6.4+（Core / Gui / Widgets / Concurrent / Network / Test）。
+要求：Git、CMake 3.21+、C++17 编译器、Qt 6.4+（Core / Gui / Widgets / Concurrent / Network / Test）。
 
 ```bash
 git clone https://github.com/phil616/project-lighter-tauri.git
 cd project-lighter-tauri
+git fetch --tags
 ```
+
+应用版本统一读取 Git tag（例如 `v2.0.2` → `2.0.2`），不再手动修改源码中的版本号。
+普通分支构建使用当前提交最近可达的 `v主版本.次版本.修订版本` 标签；标签构建使用触发 CI 的标签，
+并校验其指向当前提交。详情见 [版本管理](docs/versioning.md)。
 
 ### Linux（Ubuntu 24.04 / Debian 12 或更新版本）
 
@@ -55,7 +60,7 @@ cmake --install build --config Release --prefix "$deployPath"
 ```
 
 然后启动 `release-windows/bin/lighter.exe`。移动时保留整个目录中的 DLL、插件和 `qt.conf`。
-也可在 GitHub Actions 手动运行 **Windows Portable Build**，下载 `lighter-windows-x64-portable` 构建产物。
+也可在 GitHub Actions 手动运行 **Windows Portable Build**，下载 `lighter-<版本>-windows-x64-portable` 构建产物。
 
 Windows 使用系统 Windows PowerShell；Linux 使用 `/bin/sh`。配置文件格式跨平台兼容，命令语法及路径需要符合目标平台。命令是非交互执行，不提供交互式终端输入。对于持续运行的服务，后续步骤会在该服务退出后才执行；需要并发的服务应配置为不同项目。
 
@@ -102,6 +107,7 @@ cpack -C Release
 - `docs/migration.md`：功能对照与实现说明。
 - `docs/design.md`：界面风格、QDarkStyleSheet 集成、主题维护与截图验证。
 - `docs/repository.md`：源码入库、生成产物忽略与 CI 构建约定。
+- `docs/versioning.md`：Git tag 版本来源、产物版本与发布流程。
 - `legacy/tauri/`：迁移前的完整 Tauri 源码，保留作回溯参考；不参与 Qt 构建。
 
 快捷键：`Ctrl+N` 新建项目、`Ctrl+F` 搜索、`F5` 刷新配置。
