@@ -2,6 +2,8 @@
 
 C++17 + **Qt 6 Widgets** 原生多项目启动器。界面、配置和进程管理均由 Qt/C++ 实现，运行时不依赖 Node.js、Rust 或 WebView。
 
+项目仓库：[phil616/project-lighter-tauri](https://github.com/phil616/project-lighter-tauri)。
+
 ## 功能
 
 - 项目新建、编辑、删除；原生工作目录选择器。
@@ -18,6 +20,11 @@ C++17 + **Qt 6 Widgets** 原生多项目启动器。界面、配置和进程管�
 ## 构建与启动
 
 要求：CMake 3.21+、C++17 编译器、Qt 6.4+（Core / Gui / Widgets / Concurrent / Network / Test）。
+
+```bash
+git clone https://github.com/phil616/project-lighter-tauri.git
+cd project-lighter-tauri
+```
 
 ### Linux（Ubuntu 24.04 / Debian 12 或更新版本）
 
@@ -39,6 +46,10 @@ cmake --build build --config Release --parallel
 C:/Qt/6.8.3/msvc2022_64/bin/windeployqt.exe build/Release/lighter.exe
 ./build/Release/lighter.exe
 ```
+
+只需要免安装运行目录时，可执行 `cmake --install build --config Release --prefix release-windows`，
+然后启动 `release-windows/bin/lighter.exe`。移动时保留整个目录中的 DLL、插件和 `qt.conf`。
+也可在 GitHub Actions 手动运行 **Windows Portable Build**，下载 `lighter-windows-x64-portable` 构建产物。
 
 Windows 使用系统 Windows PowerShell；Linux 使用 `/bin/sh`。配置文件格式跨平台兼容，命令语法及路径需要符合目标平台。命令是非交互执行，不提供交互式终端输入。对于持续运行的服务，后续步骤会在该服务退出后才执行；需要并发的服务应配置为不同项目。
 
@@ -72,10 +83,10 @@ cpack -C Release
 
 - Linux：生成 `.deb` 和 `.tar.gz`。DEB 自动声明 Qt 运行库依赖；tar 包需要目标机器预装对应 Qt 6 运行库，不是独立 AppImage。
 - Windows：生成 ZIP 和 NSIS 安装包，自动部署 Qt DLL 和平台插件。制作 NSIS 包需要安装 NSIS。
-- GitHub Actions：Linux / Windows 构建和测试；分支、PR、手动触发上传产物，`v*` 标签发布 Release 并生成来源证明。
+- GitHub Actions：分支和 PR 构建、测试并上传运行目录；手动 Windows 工作流生成免安装版。`v*` 标签才制作安装包并发布 Release、生成来源证明。
 - Qt 版本的发布格式为上述格式，不再生成旧版 MSI / AppImage。
 
-测试覆盖配置兼容和校验、备份、ANSI 分块解析、实际进程执行、失败中止、子进程停止、端口查询及原生界面基本交互。Linux 已在本地验证；Windows 构建、测试和打包也通过 GitHub Actions 验证；尚未进行 Windows 桌面实机验收。
+测试覆盖配置兼容和校验、备份、ANSI 分块解析、实际进程执行、失败中止、子进程停止、端口查询及原生界面基本交互。Linux 已在本地验证；Windows 11 / Qt 6.8.3 / MinGW 13.1.0 已在本地通过 Release 构建、原生界面回归测试和免安装目录启动检查。
 
 ## 目录
 
@@ -83,6 +94,8 @@ cpack -C Release
 - `tests/`：Qt Test 回归测试。
 - `packaging/`：桌面入口。
 - `docs/migration.md`：功能对照与实现说明。
+- `docs/design.md`：界面风格、QDarkStyleSheet 集成、主题维护与截图验证。
+- `docs/repository.md`：源码入库、生成产物忽略与 CI 构建约定。
 - `legacy/tauri/`：迁移前的完整 Tauri 源码，保留作回溯参考；不参与 Qt 构建。
 
 快捷键：`Ctrl+N` 新建项目、`Ctrl+F` 搜索、`F5` 刷新配置。

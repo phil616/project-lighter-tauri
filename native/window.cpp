@@ -11,10 +11,48 @@ QLabel *label(const QString &text, const char *name = nullptr) {
     if (name) widget->setObjectName(QString::fromLatin1(name));
     return widget;
 }
-QPushButton *button(const QString &text, const char *name = nullptr) {
+QPushButton *button(const QString &text, const char *name = nullptr, const QString &icon = {}) {
     auto *widget = new QPushButton(text); widget->setCursor(Qt::PointingHandCursor);
     if (name) widget->setObjectName(QString::fromLatin1(name));
+    if (!icon.isEmpty()) { widget->setProperty("iconName", icon); widget->setIcon(uiIcon(icon)); widget->setIconSize(QSize(18, 18)); }
     return widget;
+}
+constexpr int RunningRole = Qt::UserRole + 1;
+constexpr int SummaryRole = Qt::UserRole + 2;
+class ProjectDelegate final : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+    QSize sizeHint(const QStyleOptionViewItem &, const QModelIndex &) const override { return {190, 76}; }
+    void paint(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        const auto c = themeColors(qApp->property("lighterDark").toBool());
+        const bool selected = option.state & QStyle::State_Selected;
+        const bool running = index.data(RunningRole).toBool();
+        const auto rect = option.rect.adjusted(2, 3, -2, -3);
+        p->save(); p->setClipRect(option.rect); p->setRenderHint(QPainter::Antialiasing);
+        p->setPen(Qt::NoPen); p->setBrush(selected ? c.selected : option.state & QStyle::State_MouseOver ? c.hover : c.surface);
+        p->drawRoundedRect(rect, 8, 8);
+        if (option.state & QStyle::State_HasFocus) { p->setPen(QPen(c.accent, 1, Qt::DotLine)); p->setBrush(Qt::NoBrush); p->drawRoundedRect(rect.adjusted(1, 1, -1, -1), 8, 8); }
+        const QRect tile(rect.x() + 10, rect.y() + 16, 34, 34);
+        p->setPen(Qt::NoPen); p->setBrush(selected ? c.surface : c.subtle); p->drawRoundedRect(tile, 8, 8);
+        auto font = option.font; font.setPixelSize(14); font.setWeight(QFont::DemiBold); p->setFont(font); p->setPen(selected ? c.accent : c.muted);
+        p->drawText(tile, Qt::AlignCenter, index.data().toString().left(1).toUpper());
+        const int x = tile.right() + 11, width = qMax(0, rect.right() - x - 12);
+        p->setPen(c.text); font.setPixelSize(13); p->setFont(font);
+        p->drawText(QRect(x, rect.y() + 12, width, 23), Qt::AlignVCenter, QFontMetrics(font).elidedText(index.data().toString(), Qt::ElideRight, width));
+        font.setWeight(QFont::Normal); font.setPixelSize(11); p->setFont(font);
+        p->setPen(Qt::NoPen); p->setBrush(running ? c.accent : c.muted); p->drawEllipse(QPointF(x + 3, rect.y() + 46), 3, 3);
+        p->setPen(running ? c.accent : c.muted);
+        const QString summary = (running ? QStringLiteral("运行中") : QStringLiteral("已停止")) + " · " + index.data(SummaryRole).toString();
+        p->drawText(QRect(x + 12, rect.y() + 36, qMax(0, width - 12), 20), Qt::AlignVCenter, QFontMetrics(font).elidedText(summary, Qt::ElideRight, qMax(0, width - 12)));
+        p->restore();
+    }
+};
+
+void pageHeading(QVBoxLayout *layout, const QString &title, const QString &description) {
+    layout->addWidget(label(title, "pageTitle")); layout->addWidget(label(description, "pageDescription")); layout->addSpacing(8);
+}
+QString styleCredits(bool dark) {
+    return QStringLiteral("界面样式基于 <a style=\"color:%1\" href=\"https://github.com/ColinDuquesnoy/QDarkStyleSheet\">QDarkStyleSheet 3.2.3</a>。<br>Colin Duquesnoy、Daniel Cosmo Pizetta · 代码 MIT / 图像 <a style=\"color:%1\" href=\"https://creativecommons.org/licenses/by/4.0/\">CC BY 4.0</a>。").arg(themeColors(dark).accent.name());
 }
 }
 Window::Window(QString configPath, QWidget *parent) : QMainWindow(parent), store_(std::move(configPath)), runner_(this), batch_(runner_, this) {
@@ -23,30 +61,36 @@ Window::Window(QString configPath, QWidget *parent) : QMainWindow(parent), store
     dark_ = settings.value("dark", false).toBool(); applyTheme(*qApp, dark_);
     restoreGeometry(settings.value("geometry").toByteArray());
     auto *root = new QWidget; auto *layout = new QHBoxLayout(root); layout->setContentsMargins(0, 0, 0, 0); layout->setSpacing(0); setCentralWidget(root);
-    auto *sidebar = new QFrame; sidebar->setObjectName("sidebar"); sidebar->setFixedWidth(156);
-    auto *side = new QVBoxLayout(sidebar); side->setContentsMargins(12, 16, 12, 12); side->setSpacing(6);
-    side->addWidget(label("Lighter", "brand")); side->addSpacing(10);
+    auto *sidebar = new QFrame; sidebar->setObjectName("sidebar"); sidebar->setFixedWidth(176);
+    auto *side = new QVBoxLayout(sidebar); side->setContentsMargins(14, 24, 14, 16); side->setSpacing(8);
+    auto *brandRow = new QHBoxLayout; brandRow->setSpacing(10);
+    auto *mark = label({}, "brandMark"); mark->setFixedSize(36, 36); mark->setAlignment(Qt::AlignCenter); mark->setPixmap(uiIcon("brand").pixmap(24, 24));
+    brandRow->addWidget(mark); brandRow->addWidget(label("Lighter", "brand")); brandRow->addStretch(); side->addLayout(brandRow);
+    side->addWidget(label(QStringLiteral("项目便捷启动器"), "pageDescription")); side->addSpacing(24);
+    side->addWidget(label(QStringLiteral("工作空间"), "eyebrow"));
     auto *group = new QButtonGroup(this); group->setExclusive(true);
     pages_ = new QStackedWidget;
-    const QStringList names = {QStringLiteral("项目"), QStringLiteral("端口"), QStringLiteral("配置")};
+    const QStringList names = {QStringLiteral("项目工作台"), QStringLiteral("端口工具"), QStringLiteral("配置管理")};
+    const QStringList icons = {"projects", "ports", "settings"};
     for (int i = 0; i < names.size(); ++i) {
-        auto *nav = button(names[i], "nav"); nav->setCheckable(true); group->addButton(nav, i); side->addWidget(nav);
+        auto *nav = button(names[i], "nav", icons[i]); nav->setCheckable(true); group->addButton(nav, i); side->addWidget(nav);
         connect(nav, &QPushButton::clicked, this, [this, i] { pages_->setCurrentIndex(i); });
         if (!i) nav->setChecked(true);
     }
     connect(pages_, &QStackedWidget::currentChanged, this, [group](int index) { if (auto *nav = group->button(index)) nav->setChecked(true); });
     side->addStretch();
-    auto *theme = button(QStringLiteral("切换明暗主题")); side->addWidget(theme);
+    side->addWidget(label(QStringLiteral("Ctrl+N  新建项目\nCtrl+F  快速搜索"), "pageDescription")); side->addSpacing(12);
+    auto *theme = button(QStringLiteral("切换明暗主题"), "quiet", "theme"); side->addWidget(theme);
     connect(theme, &QPushButton::clicked, this, [this] {
         dark_ = !dark_; applyTheme(*qApp, dark_);
+        findChild<QLabel *>("styleCredits")->setText(styleCredits(dark_));
         QSettings settings(store_.path() + ".ui.ini", QSettings::IniFormat); settings.setValue("dark", dark_);
     });
     auto *version = label(QStringLiteral("v%1").arg(LIGHTER_VERSION), "muted");
     version->setToolTip(QStringLiteral("Qt 6 · %1").arg(LIGHTER_GIT_COMMIT)); side->addWidget(version);
     layout->addWidget(sidebar); layout->addWidget(pages_, 1);
     pages_->addWidget(projectPage()); pages_->addWidget(portPage()); pages_->addWidget(settingsPage());
-    total_ = label({}, "muted"); active_ = label({}, "muted"); idle_ = label({}, "muted");
-    statusBar()->addPermanentWidget(total_); statusBar()->addPermanentWidget(active_); statusBar()->addPermanentWidget(idle_);
+    statusBar()->addPermanentWidget(label(QStringLiteral("Lighter  ·  本地工作空间"), "muted"));
     auto *shortcut = new QShortcut(QKeySequence::New, this); connect(shortcut, &QShortcut::activated, this, [this] { editProject(true); });
     shortcut = new QShortcut(QKeySequence::Find, this); connect(shortcut, &QShortcut::activated, this, [this] { pages_->setCurrentIndex(0); search_->setFocus(); search_->selectAll(); });
     shortcut = new QShortcut(QKeySequence::Refresh, this); connect(shortcut, &QShortcut::activated, this, &Window::load);
@@ -73,9 +117,10 @@ Window::Window(QString configPath, QWidget *parent) : QMainWindow(parent), store
     QTimer::singleShot(0, this, &Window::load);
 }
 QWidget *Window::projectPage() {
-    auto *page = new QWidget; auto *layout = new QVBoxLayout(page); layout->setContentsMargins(16, 16, 16, 12); layout->setSpacing(12);
+    auto *page = new QWidget; page->setObjectName("page"); auto *layout = new QVBoxLayout(page); layout->setContentsMargins(24, 22, 24, 18); layout->setSpacing(12);
     auto *head = new QHBoxLayout;
-    head->addWidget(label(QStringLiteral("项目"), "pageTitle")); head->addStretch();
+    auto *heading = new QVBoxLayout; heading->setSpacing(3); heading->addWidget(label(QStringLiteral("项目工作台"), "pageTitle")); heading->addWidget(label(QStringLiteral("由AltasCI出品的项目进程管理工具。"), "pageDescription"));
+    head->addLayout(heading); head->addStretch();
     startupPortsButton_ = button(QStringLiteral("启动端口")); startupPortsButton_->setObjectName("startupPortsButton");
     head->addWidget(startupPortsButton_); connect(startupPortsButton_, &QPushButton::clicked, this, &Window::editStartupPorts);
     batchButton_ = button(QStringLiteral("一键启动"), "primary"); batchButton_->setObjectName("batchButton"); batchButton_->setProperty("primary", true); head->addWidget(batchButton_);
@@ -83,31 +128,46 @@ QWidget *Window::projectPage() {
         if (batch_.busy() || runner_.count()) batch_.stop();
         else if (loaded_) batch_.start(config_);
     });
-    new_ = button(QStringLiteral("新建项目")); new_->setToolTip("Ctrl+N"); head->addWidget(new_); layout->addLayout(head);
+    new_ = button(QStringLiteral("新建项目"), nullptr, "plus"); new_->setToolTip("Ctrl+N"); head->addWidget(new_); layout->addLayout(head);
     connect(new_, &QPushButton::clicked, this, [this] { editProject(true); });
+    auto *stats = new QHBoxLayout; stats->setSpacing(12);
+    auto stat = [stats](const QString &caption, const char *tone) {
+        auto *card = new QFrame; card->setObjectName("statCard"); auto *row = new QHBoxLayout(card); row->setContentsMargins(16, 10, 16, 10);
+        row->addWidget(label(caption, "muted")); row->addStretch(); auto *value = label("0"); value->setProperty("stat", true); value->setProperty("tone", tone); row->addWidget(value); stats->addWidget(card, 1); return value;
+    };
+    total_ = stat(QStringLiteral("全部项目"), "total"); active_ = stat(QStringLiteral("运行中"), "active"); idle_ = stat(QStringLiteral("已停止"), "idle"); layout->addLayout(stats);
     auto *toolbar = new QHBoxLayout;
-    search_ = new QLineEdit; search_->setObjectName("projectSearch"); search_->setPlaceholderText(QStringLiteral("搜索")); search_->setToolTip(QStringLiteral("搜索项目、命令或目录（Ctrl+F）")); toolbar->addWidget(search_, 1);
-    filter_ = new QComboBox; filter_->addItems({QStringLiteral("全部状态"), QStringLiteral("运行中"), QStringLiteral("已停止")}); toolbar->addWidget(filter_);
-    auto *refresh = button(QStringLiteral("刷新")); refresh->setToolTip("F5"); toolbar->addWidget(refresh); layout->addLayout(toolbar);
+    search_ = new QLineEdit; search_->setObjectName("projectSearch"); search_->setPlaceholderText(QStringLiteral("搜索项目、命令或目录…")); search_->setToolTip(QStringLiteral("搜索项目、命令或目录（Ctrl+F）")); search_->setClearButtonEnabled(true); search_->addAction(uiIcon("search"), QLineEdit::LeadingPosition); toolbar->addWidget(search_, 1);
+    filter_ = new QComboBox; filter_->setObjectName("projectFilter"); filter_->addItems({QStringLiteral("全部状态"), QStringLiteral("运行中"), QStringLiteral("已停止")}); toolbar->addWidget(filter_);
+    auto *refresh = button(QStringLiteral("刷新"), nullptr, "refresh"); refresh->setToolTip("F5"); toolbar->addWidget(refresh); layout->addLayout(toolbar);
     connect(search_, &QLineEdit::textChanged, this, [this] { refreshList(); }); connect(filter_, &QComboBox::currentIndexChanged, this, [this] { refreshList(); }); connect(refresh, &QPushButton::clicked, this, &Window::load);
-    auto *splitter = new QSplitter; splitter->setChildrenCollapsible(false); projects_ = new QListWidget; projects_->setObjectName("projectList"); projects_->setMinimumWidth(205); splitter->addWidget(projects_);
+    auto *splitter = new QSplitter; splitter->setChildrenCollapsible(false); splitter->setHandleWidth(12);
+    projects_ = new QListWidget; projects_->setObjectName("projectList"); projects_->setMinimumWidth(190); projects_->setItemDelegate(new ProjectDelegate(projects_)); projects_->setMouseTracking(true); projects_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff); projects_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel); splitter->addWidget(projects_);
     detailStack_ = new QStackedWidget;
     auto *empty = new QFrame; empty->setObjectName("panel"); auto *emptyLayout = new QVBoxLayout(empty); emptyLayout->addStretch();
+    auto *emptyMark = label(QStringLiteral("›_"), "emptyMark"); emptyMark->setFixedSize(64, 64); emptyMark->setAlignment(Qt::AlignCenter); emptyLayout->addWidget(emptyMark, 0, Qt::AlignHCenter); emptyLayout->addSpacing(12);
     auto *emptyTitle = label(QStringLiteral("暂无项目"), "emptyState"); emptyTitle->setAlignment(Qt::AlignCenter); emptyLayout->addWidget(emptyTitle);
+    auto *emptyDescription = label(QStringLiteral("添加第一个项目，集中管理命令、脚本与运行日志。"), "emptyDescription"); emptyDescription->setWordWrap(true); emptyDescription->setAlignment(Qt::AlignCenter); emptyLayout->addWidget(emptyDescription);
+    auto *emptyCreate = button(QStringLiteral("新建第一个项目"), "primary"); emptyCreate->setObjectName("emptyCreate"); emptyCreate->setProperty("primary", true); emptyCreate->setEnabled(false); emptyLayout->addSpacing(12); emptyLayout->addWidget(emptyCreate, 0, Qt::AlignHCenter); connect(emptyCreate, &QPushButton::clicked, this, [this] { editProject(true); });
+    auto *reset = button(QStringLiteral("清除搜索与筛选")); reset->setObjectName("resetFilters"); reset->hide(); emptyLayout->addWidget(reset, 0, Qt::AlignHCenter); connect(reset, &QPushButton::clicked, this, [this] { search_->clear(); filter_->setCurrentIndex(0); });
     emptyLayout->addStretch(); detailStack_->addWidget(empty);
-    auto *detail = new QWidget; auto *content = new QVBoxLayout(detail); content->setContentsMargins(8, 0, 0, 0); content->setSpacing(10);
-    auto *top = new QHBoxLayout; title_ = label({}, "sectionTitle"); title_->setWordWrap(true); top->addWidget(title_, 1); state_ = label({}, "badge"); top->addWidget(state_); content->addLayout(top);
-    directory_ = label({}, "muted"); directory_->setWordWrap(true); directory_->setTextInteractionFlags(Qt::TextSelectableByMouse); content->addWidget(directory_);
-    commands_ = label({}); commands_->setWordWrap(true); commands_->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    auto *commandScroll = new QScrollArea; commandScroll->setObjectName("commandScroll"); commandScroll->setWidgetResizable(true); commandScroll->setFrameShape(QFrame::NoFrame); commandScroll->setMaximumHeight(100); commandScroll->setWidget(commands_); content->addWidget(commandScroll);
+    auto *detail = new QWidget; detail->setObjectName("detail"); auto *content = new QVBoxLayout(detail); content->setContentsMargins(0, 0, 0, 0); content->setSpacing(12);
+    auto *summary = new QFrame; summary->setObjectName("projectSummary"); auto *summaryLayout = new QVBoxLayout(summary); summaryLayout->setContentsMargins(16, 14, 16, 14); summaryLayout->setSpacing(8);
+    auto *top = new QHBoxLayout; title_ = label({}, "sectionTitle"); title_->setWordWrap(true); top->addWidget(title_, 1); state_ = label({}, "badge"); top->addWidget(state_); summaryLayout->addLayout(top);
+    directory_ = label({}, "muted"); directory_->setWordWrap(true); directory_->setTextInteractionFlags(Qt::TextSelectableByMouse); summaryLayout->addWidget(directory_);
+    commands_ = label({}, "commandPreview"); commands_->setWordWrap(true); commands_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    auto *commandScroll = new QScrollArea; commandScroll->setObjectName("commandScroll"); commandScroll->setWidgetResizable(true); commandScroll->setFrameShape(QFrame::NoFrame); commandScroll->setMaximumHeight(100); commandScroll->setWidget(commands_); summaryLayout->addWidget(commandScroll);
     auto *actions = new QHBoxLayout; start_ = button(QStringLiteral("▶ 启动"), "primary"); stop_ = button(QStringLiteral("■ 停止"), "danger"); edit_ = button(QStringLiteral("编辑")); remove_ = button(QStringLiteral("删除"));
-    actions->addWidget(start_); actions->addWidget(stop_); actions->addStretch(); actions->addWidget(edit_); actions->addWidget(remove_); content->addLayout(actions);
+    remove_->setProperty("danger", true);
+    actions->addWidget(start_); actions->addWidget(stop_); actions->addStretch(); actions->addWidget(edit_); actions->addWidget(remove_); summaryLayout->addLayout(actions); content->addWidget(summary);
     connect(start_, &QPushButton::clicked, this, &Window::startProject); connect(stop_, &QPushButton::clicked, this, [this] { runner_.stop(selectedId()); });
     connect(edit_, &QPushButton::clicked, this, [this] { editProject(false); }); connect(remove_, &QPushButton::clicked, this, &Window::removeProject);
-    auto *logbar = new QHBoxLayout; logbar->addWidget(label(QStringLiteral("运行日志"))); logbar->addStretch(); follow_ = new QCheckBox(QStringLiteral("自动滚动")); follow_->setChecked(true); logbar->addWidget(follow_);
-    auto *clear = button(QStringLiteral("清空")); auto *exportLog = button(QStringLiteral("保存日志")); logbar->addWidget(clear); logbar->addWidget(exportLog); content->addLayout(logbar);
+    auto *logPanel = new QFrame; logPanel->setObjectName("logPanel"); auto *logLayout = new QVBoxLayout(logPanel); logLayout->setContentsMargins(1, 1, 1, 1); logLayout->setSpacing(0);
+    auto *logToolbar = new QWidget; logToolbar->setObjectName("logToolbar"); auto *logbar = new QHBoxLayout(logToolbar); logbar->setContentsMargins(14, 7, 10, 7); logbar->addWidget(label(QStringLiteral("运行日志"))); logbar->addStretch(); follow_ = new QCheckBox(QStringLiteral("自动滚动")); follow_->setChecked(true); logbar->addWidget(follow_);
+    auto *clear = button(QStringLiteral("清空")); auto *exportLog = button(QStringLiteral("保存日志")); logbar->addWidget(clear); logbar->addWidget(exportLog); logLayout->addWidget(logToolbar);
     terminal_ = new QTextEdit; terminal_->setObjectName("terminal"); terminal_->setReadOnly(true); terminal_->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
-    emptyLog_ = new QTextDocument(this); terminal_->setDocument(emptyLog_); content->addWidget(terminal_, 1);
+    terminal_->setPlaceholderText(QStringLiteral("等待项目启动…\n运行输出将在这里实时显示。"));
+    emptyLog_ = new QTextDocument(this); terminal_->setDocument(emptyLog_); logLayout->addWidget(terminal_, 1); content->addWidget(logPanel, 1);
     connect(clear, &QPushButton::clicked, this, [this] { const auto id = selectedId(); if (logs_.contains(id)) logs_[id]->clear(); renderers_[id].reset(); });
     connect(exportLog, &QPushButton::clicked, this, [this] {
         const auto path = QFileDialog::getSaveFileName(this, QStringLiteral("保存日志"), "project-output.txt", "Text (*.txt)");
@@ -120,38 +180,46 @@ QWidget *Window::projectPage() {
     return page;
 }
 QWidget *Window::portPage() {
-    auto *page = new QWidget; auto *layout = new QVBoxLayout(page); layout->setContentsMargins(16, 16, 16, 12); layout->setSpacing(12);
-    layout->addWidget(label(QStringLiteral("端口"), "pageTitle"));
-    auto *panel = new QFrame; panel->setObjectName("panel"); auto *box = new QVBoxLayout(panel); box->setContentsMargins(16, 16, 16, 16); box->setSpacing(12);
+    auto *page = new QWidget; page->setObjectName("page"); auto *layout = new QVBoxLayout(page); layout->setContentsMargins(24, 22, 24, 18); layout->setSpacing(12);
+    pageHeading(layout, QStringLiteral("端口工具"), QStringLiteral("查看 TCP 端口占用，快速定位启动冲突。"));
+    auto *panel = new QFrame; panel->setObjectName("panel"); auto *box = new QVBoxLayout(panel); box->setContentsMargins(24, 22, 24, 22); box->setSpacing(18);
+    box->addWidget(label(QStringLiteral("查询端口占用"), "sectionTitle"));
+    auto *hint = label(QStringLiteral("输入端口号，查看占用它的进程名称与 PID。"), "muted"); hint->setWordWrap(true); box->addWidget(hint);
     auto *row = new QHBoxLayout;
     port_ = new QSpinBox; port_->setRange(1, 65535); port_->setValue(8080); port_->setPrefix("TCP  "); row->addWidget(port_, 1);
     portQuery_ = button(QStringLiteral("查询端口"), "primary"); portKill_ = button(QStringLiteral("结束占用进程"), "danger"); portKill_->setEnabled(false); row->addWidget(portQuery_); row->addWidget(portKill_); box->addLayout(row);
-    portResult_ = label(QStringLiteral("未查询"), "muted"); portResult_->setWordWrap(true); portResult_->setTextInteractionFlags(Qt::TextSelectableByMouse); box->addWidget(portResult_); layout->addWidget(panel); layout->addStretch();
+    portResult_ = label(QStringLiteral("等待查询 · 支持 TCP / IPv4 / IPv6"), "muted"); portResult_->setMinimumHeight(70); portResult_->setWordWrap(true); portResult_->setTextInteractionFlags(Qt::TextSelectableByMouse); box->addWidget(portResult_); layout->addWidget(panel); layout->addStretch();
     connect(portQuery_, &QPushButton::clicked, this, &Window::queryPort); connect(portKill_, &QPushButton::clicked, this, &Window::killPort);
     connect(port_, &QSpinBox::valueChanged, this, [this] { portKill_->setEnabled(false); });
     auto *enter = new QShortcut(QKeySequence(Qt::Key_Return), port_); enter->setContext(Qt::WidgetWithChildrenShortcut); connect(enter, &QShortcut::activated, this, &Window::queryPort);
     return page;
 }
 QWidget *Window::settingsPage() {
-    auto *page = new QWidget; auto *layout = new QVBoxLayout(page); layout->setContentsMargins(16, 16, 16, 12); layout->setSpacing(12);
-    layout->addWidget(label(QStringLiteral("配置"), "pageTitle"));
-    auto *panel = new QFrame; panel->setObjectName("panel"); auto *box = new QVBoxLayout(panel); box->setContentsMargins(16, 16, 16, 16); box->setSpacing(12);
-    box->addWidget(label(QStringLiteral("配置文件")));
+    auto *page = new QWidget; page->setObjectName("page"); auto *layout = new QVBoxLayout(page); layout->setContentsMargins(24, 22, 24, 18); layout->setSpacing(12);
+    pageHeading(layout, QStringLiteral("配置管理"), QStringLiteral("备份、迁移和维护你的项目工作空间。"));
+    auto *panel = new QFrame; panel->setObjectName("panel"); auto *box = new QVBoxLayout(panel); box->setContentsMargins(24, 22, 24, 22); box->setSpacing(16);
+    box->addWidget(label(QStringLiteral("配置文件"), "sectionTitle"));
     auto *path = label(store_.path(), "muted"); path->setWordWrap(true); path->setTextInteractionFlags(Qt::TextSelectableByMouse); box->addWidget(path);
     path->setToolTip(QStringLiteral("首次保存备份：%1.pre-qt.bak").arg(store_.path()));
+    auto *backup = label(QStringLiteral("首次保存会自动备份原文件。导出配置可用于备份或迁移到其他设备。"), "muted"); backup->setWordWrap(true); box->addWidget(backup);
     auto *row = new QHBoxLayout; auto *import = button(QStringLiteral("导入配置"), "primary"), *exportButton = button(QStringLiteral("导出配置")), *json = button(QStringLiteral("编辑 JSON"));
     row->addWidget(import); row->addWidget(exportButton); row->addWidget(json); row->addStretch(); box->addLayout(row); layout->addWidget(panel);
     connect(import, &QPushButton::clicked, this, &Window::importConfig); connect(exportButton, &QPushButton::clicked, this, &Window::exportConfig); connect(json, &QPushButton::clicked, this, &Window::editJson);
-    auto *github = button("GitHub"); layout->addWidget(github, 0, Qt::AlignLeft);
-    connect(github, &QPushButton::clicked, this, [] { QDesktopServices::openUrl(QUrl("https://github.com/dreamreflex/project-lighter-tauri")); });
+    auto *about = new QFrame; about->setObjectName("panel"); auto *aboutLayout = new QVBoxLayout(about); aboutLayout->setContentsMargins(24, 22, 24, 22); aboutLayout->setSpacing(12);
+    aboutLayout->addWidget(label(QStringLiteral("关于 Lighter"), "sectionTitle"));
+    aboutLayout->addWidget(label(QStringLiteral("轻量的本地项目启动器 · v%1").arg(LIGHTER_VERSION), "muted"));
+    auto *credits = new QLabel(styleCredits(dark_)); credits->setObjectName("styleCredits"); credits->setWordWrap(true); credits->setOpenExternalLinks(true); aboutLayout->addWidget(credits);
+    auto *github = button(QStringLiteral("在 GitHub 查看项目"), "quiet"); aboutLayout->addWidget(github, 0, Qt::AlignLeft); layout->addWidget(about);
+    connect(github, &QPushButton::clicked, this, [] { QDesktopServices::openUrl(QUrl("https://github.com/phil616/project-lighter-tauri")); });
     layout->addStretch(); return page;
 }
 QString Window::selectedId() const { return projects_->currentItem() ? projects_->currentItem()->data(Qt::UserRole).toString() : QString(); }
 const Project *Window::selected() const { const auto id = selectedId(); for (const auto &p : config_.projects) if (p.id == id) return &p; return nullptr; }
 void Window::updateStats() {
-    total_->setText(QStringLiteral("项目 %1   ").arg(config_.projects.size())); active_->setText(QStringLiteral("运行 %1   ").arg(runner_.count()));
+    total_->setText(QString::number(config_.projects.size())); active_->setText(QString::number(runner_.count()));
     int stopped = 0; for (const auto &p : config_.projects) if (!runner_.running(p.id)) ++stopped;
-    idle_->setText(QStringLiteral("停止 %1   ").arg(stopped)); new_->setEnabled(loaded_ && !batch_.busy());
+    idle_->setText(QString::number(stopped)); new_->setEnabled(loaded_ && !batch_.busy());
+    findChild<QPushButton *>("emptyCreate")->setEnabled(loaded_ && !batch_.busy());
     batchButton_->setText(batch_.busy() || runner_.count() ? QStringLiteral("一键关闭") : QStringLiteral("一键启动"));
     batchButton_->setEnabled(!batch_.stopping() && (batch_.busy() || runner_.count() || (loaded_ && !config_.projects.isEmpty())));
     startupPortsButton_->setEnabled(loaded_ && !batch_.busy());
@@ -166,7 +234,10 @@ void Window::refreshList(const QString &select) {
         if (!haystack.contains(search_->text(), Qt::CaseInsensitive)) continue;
         const bool running = runner_.running(p.id);
         if ((filter_->currentIndex() == 1 && !running) || (filter_->currentIndex() == 2 && running)) continue;
-        auto *item = new QListWidgetItem(QStringLiteral("%1  %2\n     %3 · %4").arg(running ? "●" : "○", p.name, running ? QStringLiteral("运行中") : QStringLiteral("已停止"), p.type == "script" ? QStringLiteral("脚本") : QStringLiteral("%1 个步骤").arg(p.commands.size())), projects_);
+        auto *item = new QListWidgetItem(p.name, projects_);
+        const auto summary = p.type == "script" ? QStringLiteral("脚本") : QStringLiteral("%1 个步骤").arg(p.commands.size());
+        item->setData(RunningRole, running); item->setData(SummaryRole, summary);
+        item->setData(Qt::AccessibleTextRole, p.name + " · " + (running ? QStringLiteral("运行中") : QStringLiteral("已停止")) + " · " + summary);
         item->setData(Qt::UserRole, p.id); item->setToolTip(p.workingDir);
         if (p.id == old) projects_->setCurrentItem(item);
     }
@@ -185,7 +256,11 @@ void Window::refreshList(const QString &select) {
 void Window::updateDetail() {
     const auto *p = selected(); detailStack_->setCurrentIndex(p ? 1 : 0);
     if (!p) {
-        findChild<QLabel *>("emptyState")->setText(config_.projects.isEmpty() ? QStringLiteral("暂无项目") : QStringLiteral("无匹配项目"));
+        const bool empty = config_.projects.isEmpty();
+        findChild<QLabel *>("emptyState")->setText(empty ? QStringLiteral("从第一个项目开始") : QStringLiteral("没有找到匹配的项目"));
+        findChild<QLabel *>("emptyDescription")->setText(empty ? QStringLiteral("添加项目的命令或脚本，集中查看每一次运行的输出。") : QStringLiteral("试试其他关键词，或清除当前的搜索与状态筛选。"));
+        findChild<QPushButton *>("emptyCreate")->setVisible(empty);
+        findChild<QPushButton *>("resetFilters")->setVisible(!empty);
         terminal_->setDocument(emptyLog_); return;
     }
     title_->setText(p->name); directory_->setText(p->workingDir.isEmpty() ? QDir::currentPath() : p->workingDir);
@@ -193,7 +268,9 @@ void Window::updateDetail() {
     commands_->setText(p->type == "script" ? p->script : commands.join('\n'));
     findChild<QScrollArea *>("commandScroll")->setFixedHeight(qBound(42, (p->type == "script" ? int(p->script.count('\n')) + 1 : int(commands.size())) * 30 + 12, 100));
     const bool running = runner_.running(p->id);
-    state_->setText(running ? QStringLiteral("● 运行中") : QStringLiteral("○ 已停止")); start_->setEnabled(!running && !batch_.busy()); stop_->setEnabled(running);
+    state_->setText(running ? QStringLiteral("● 运行中") : QStringLiteral("○ 已停止"));
+    if (state_->property("running").toBool() != running) { state_->setProperty("running", running); state_->style()->unpolish(state_); state_->style()->polish(state_); }
+    start_->setEnabled(!running && !batch_.busy()); stop_->setEnabled(running);
     edit_->setEnabled(!running && !batch_.busy()); remove_->setEnabled(!batch_.busy()); edit_->setToolTip(running ? QStringLiteral("停止项目后可编辑") : QString());
     auto *document = logs_.value(p->id, emptyLog_); if (terminal_->document() != document) terminal_->setDocument(document);
 }
@@ -250,7 +327,7 @@ void Window::appendOutput(const QString &id, const QString &text) {
 void Window::editStartupPorts() {
     if (!loaded_ || batch_.busy()) return;
     QDialog dialog(this); dialog.setWindowTitle(QStringLiteral("启动端口")); dialog.resize(400, 360);
-    auto *layout = new QVBoxLayout(&dialog);
+    auto *layout = new QVBoxLayout(&dialog); layout->setContentsMargins(24, 24, 24, 24); layout->setSpacing(14);
     auto *hint = label(QStringLiteral("一键启动前检查并释放这些 TCP 端口。"), "muted"); layout->addWidget(hint);
     auto *list = new QListWidget; list->setObjectName("startupPortList"); layout->addWidget(list);
     for (const auto port : config_.startupPorts) new QListWidgetItem(QString::number(port), list);
@@ -260,7 +337,7 @@ void Window::editStartupPorts() {
         const auto text = QString::number(port->value()); if (list->findItems(text, Qt::MatchExactly).isEmpty()) new QListWidgetItem(text, list);
     });
     connect(remove, &QPushButton::clicked, &dialog, [list] { delete list->takeItem(list->currentRow()); });
-    auto *buttons = new QDialogButtonBox; buttons->addButton(QStringLiteral("保存"), QDialogButtonBox::AcceptRole); buttons->addButton(QStringLiteral("取消"), QDialogButtonBox::RejectRole); layout->addWidget(buttons);
+    auto *buttons = new QDialogButtonBox; buttons->addButton(QStringLiteral("保存"), QDialogButtonBox::AcceptRole)->setObjectName("primary"); buttons->addButton(QStringLiteral("取消"), QDialogButtonBox::RejectRole); layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, [&, this] {
         auto config = config_; config.startupPorts.clear();
@@ -270,7 +347,7 @@ void Window::editStartupPorts() {
 }
 void Window::editJson() {
     QDialog dialog(this); dialog.setWindowTitle(QStringLiteral("编辑 JSON 配置")); dialog.resize(820, 640);
-    auto *layout = new QVBoxLayout(&dialog); auto *editor = new QPlainTextEdit;
+    auto *layout = new QVBoxLayout(&dialog); layout->setContentsMargins(24, 24, 24, 24); layout->setSpacing(14); auto *editor = new QPlainTextEdit;
     editor->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont)); editor->setPlainText(QString::fromUtf8(config_.json()));
     if (!loaded_) { QFile file(store_.path()); if (file.open(QIODevice::ReadOnly)) editor->setPlainText(QString::fromUtf8(file.readAll())); }
     layout->addWidget(editor); auto *error = label({}, "error"); error->setWordWrap(true); layout->addWidget(error);

@@ -2,10 +2,12 @@
 #include <QtWidgets>
 ProjectEditor::ProjectEditor(const Project &project, QWidget *parent) : QDialog(parent), original_(project) {
     setWindowTitle(project.id.isEmpty() ? QStringLiteral("新建项目") : QStringLiteral("编辑项目"));
-    setMinimumSize(620, 470); resize(740, 540);
+    setMinimumSize(660, 500); resize(780, 600);
     auto *layout = new QVBoxLayout(this); layout->setContentsMargins(28, 24, 28, 24); layout->setSpacing(16);
     auto *title = new QLabel(windowTitle()); title->setObjectName("sectionTitle"); layout->addWidget(title);
+    auto *description = new QLabel(QStringLiteral("设置工作目录与执行方式，随时一键启动。")); description->setObjectName("muted"); layout->addWidget(description);
     auto *form = new QFormLayout;
+    form->setHorizontalSpacing(20); form->setVerticalSpacing(12); form->setLabelAlignment(Qt::AlignRight | Qt::AlignVCenter);
     type_ = new QComboBox; type_->setObjectName("projectTypeInput");
     type_->addItem(QStringLiteral("命令"), "command"); type_->addItem(QStringLiteral("脚本"), "script");
     type_->setCurrentIndex(project.type == "script" ? 1 : 0);
@@ -20,6 +22,7 @@ ProjectEditor::ProjectEditor(const Project &project, QWidget *parent) : QDialog(
     commands_->setHorizontalHeaderLabels({QStringLiteral("步骤名称（可选）"), QStringLiteral("执行命令 *")});
     commands_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     commands_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    commands_->verticalHeader()->hide();
     commands_->setSelectionBehavior(QAbstractItemView::SelectRows); commands_->setAlternatingRowColors(true);
     layout->addWidget(commands_, 1);
     script_ = new QPlainTextEdit(project.script); script_->setObjectName("scriptInput");

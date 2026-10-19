@@ -1,100 +1,135 @@
-# ========================
-# Node.js / 前端
-# ========================
-node_modules/
-dist/
-dist-ssr/
-*.local
+# Qt / CMake build trees and downloaded toolchains
+/build*/
+/cmake-build-*/
+/out/
+/_packages/
+/stage/
+/release-windows/
+/release-linux/
+/release-macos/
+CMakeFiles/
+CMakeCache.txt
+CMakeUserPresets.json
+cmake_install.cmake
+CTestTestfile.cmake
+DartConfiguration.tcl
+CPackConfig.cmake
+CPackSourceConfig.cmake
+install_manifest*.txt
+build.ninja
+.ninja_*
+*_autogen/
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+.qmake.cache
+.qmake.stash
 
-# 构建缓存
-.vite/
-.cache/
-
-# ========================
-# Rust / Cargo
-# ========================
-src-tauri/target/
-
-# ========================
-# Tauri
-# ========================
-# 打包产物（安装包、可执行文件）
-src-tauri/gen/
-*.app
+# Compiled binaries, debug data and release archives are CI output, never source.
+*.exe
+*.exe.dist
+*.dll
+*.pdb
+*.lib
+*.exp
+*.ilk
+*.idb
+*.obj
+*.o
+*.a
+*.so
+*.so.*
+*.dylib
+*.pch
+*.gch
+*.res
+*.map
+*.gcda
+*.gcno
+*.dSYM/
+*.app/
+*.msi
+*.msix
+*.msixbundle
+*.appx
 *.dmg
+*.pkg
 *.deb
 *.rpm
 *.AppImage
-*.msi
-*.exe
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+*.tar.xz
+*.tar.zst
+*.tgz
 
-# ========================
-# Electron（遗留目录）
-# ========================
-Electron/node_modules/
-Electron/dist/
+# Archived Tauri / frontend dependencies and generated files.
+# Keep package-lock.json and Cargo.lock tracked.
+node_modules/
+dist/
+dist-ssr/
+.vite/
+.cache/
+target/
+src-tauri/gen/
+*.tsbuildinfo
 
-# ========================
-# 编辑器 / IDE
-# ========================
+# Local Python environments and caches used by build tools
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local launcher configuration, preferences, locks and migration backups
+/config.json
+/config.json.lock
+/config.json.pre-qt.bak
+*.ui.ini
+*.pre-qt.bak
+/project-output.txt
+
+# Secrets and machine-specific settings; keep sample environment files
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+*.local
+
+# Editors / IDEs
+.vs/
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
 .idea/
+.codegraph/
+*.user
+*.user.*
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
+*.sln.docstates
+*.VC.db
+*.VC.opendb
 *.sw?
 
-# ========================
-# 操作系统
-# ========================
-# Windows
+# Operating-system files and temporary output
 Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
-
-# macOS
 .DS_Store
 .AppleDouble
 .LSOverride
-
-# Linux
 *~
-
-# ========================
-# 日志与临时文件
-# ========================
 *.log
 *.tmp
 *.temp
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# ========================
-# 环境变量（含敏感信息）
-# ========================
-.env
-.env.local
-.env.*.local
-
-# ========================
-# 本地构建产物
-# ========================
-release-windows/
-release-linux/
-release-macos/
-
-# Qt / CMake
-/build*/
-/_packages/
-CMakeUserPresets.json
-.codegraph/
-legacy/tauri/node_modules/
-legacy/tauri/dist/
-legacy/tauri/src-tauri/target/
-legacy/tauri/src-tauri/gen/

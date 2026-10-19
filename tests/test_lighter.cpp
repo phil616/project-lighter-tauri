@@ -37,6 +37,7 @@ private slots:
     void startingCancellation();
     void queryPort();
     void editorAndWindow();
+    void windowEmptyStates();
     void terminatePortOwner();
     void windowCloseStopsProjects();
     void scriptConfigAndEditor();
@@ -149,8 +150,39 @@ void LighterTest::editorAndWindow() {
     if (qEnvironmentVariableIsSet("LIGHTER_SCREENSHOT")) { window.resize(1240, 820); QTest::qWait(200); QVERIFY(window.grab().save(qEnvironmentVariable("LIGHTER_SCREENSHOT")));
         for (auto *b : window.findChildren<QPushButton *>()) if (b->text().contains(QStringLiteral("切换明暗主题"))) b->click();
         QVERIFY(window.grab().save(qEnvironmentVariable("LIGHTER_SCREENSHOT") + ".dark.png"));
-        window.resize(920, 660); QTest::qWait(100); QVERIFY(terminal->height() >= 120); QVERIFY(window.grab().save(qEnvironmentVariable("LIGHTER_SCREENSHOT") + ".compact.png")); }
+        window.resize(920, 660); QTest::qWait(100); QVERIFY(terminal->height() >= 120); QVERIFY(window.grab().save(qEnvironmentVariable("LIGHTER_SCREENSHOT") + ".compact.png"));
+        window.resize(1240, 820);
+        for (const auto &page : {QStringLiteral("端口工具"), QStringLiteral("配置管理")}) {
+            for (auto *b : window.findChildren<QPushButton *>("nav")) if (b->text() == page) b->click();
+            QTest::qWait(50); QVERIFY(window.grab().save(qEnvironmentVariable("LIGHTER_SCREENSHOT") + (page == QStringLiteral("端口工具") ? ".ports.png" : ".settings.png")));
+        }
+        ProjectEditor preview(project("echo ready"), &window); preview.show(); QTest::qWait(50);
+        QVERIFY(preview.grab().save(qEnvironmentVariable("LIGHTER_SCREENSHOT") + ".editor.png")); preview.close();
+    }
     window.close();
+}
+void LighterTest::windowEmptyStates() {
+    QTemporaryDir dir; ConfigStore store(dir.filePath("config.json")); store.save(Config{});
+    Window window(store.path()); window.show();
+    auto *list = window.findChild<QListWidget *>("projectList");
+    auto *create = window.findChild<QPushButton *>("emptyCreate");
+    auto *reset = window.findChild<QPushButton *>("resetFilters");
+    QTRY_VERIFY(create->isVisible() && create->isEnabled()); QVERIFY(!reset->isVisible()); QCOMPARE(list->count(), 0);
+    if (qEnvironmentVariableIsSet("LIGHTER_SCREENSHOT")) { QTest::qWait(50); QVERIFY(window.grab().save(qEnvironmentVariable("LIGHTER_SCREENSHOT") + ".empty.png")); }
+    QTimer::singleShot(50, [] {
+        auto *editor = qobject_cast<ProjectEditor *>(QApplication::activeModalWidget()); if (!editor) return;
+        editor->findChild<QLineEdit *>("projectNameInput")->setText(QStringLiteral("第一个项目"));
+        editor->findChild<QTableWidget *>("commandsInput")->item(0, 1)->setText("echo ready");
+        editor->findChild<QPushButton *>("primary")->click();
+    });
+    create->click(); QTRY_COMPARE(list->count(), 1); QCOMPARE(store.load().projects.size(), 1);
+    auto *search = window.findChild<QLineEdit *>("projectSearch");
+    auto *filter = window.findChild<QComboBox *>("projectFilter");
+    search->setText("no-such-project"); filter->setCurrentIndex(1);
+    QCOMPARE(list->count(), 0); QVERIFY(reset->isVisible()); QVERIFY(!create->isVisible());
+    if (qEnvironmentVariableIsSet("LIGHTER_SCREENSHOT")) { QTest::qWait(50); QVERIFY(window.grab().save(qEnvironmentVariable("LIGHTER_SCREENSHOT") + ".filtered.png")); }
+    reset->click(); QCOMPARE(search->text(), QString()); QCOMPARE(filter->currentIndex(), 0); QCOMPARE(list->count(), 1);
+    QVERIFY(window.findChild<QTextEdit *>("terminal")->isVisible()); window.close();
 }
 void LighterTest::terminatePortOwner() {
     QTemporaryDir dir; const auto portFile = dir.filePath("port.txt");

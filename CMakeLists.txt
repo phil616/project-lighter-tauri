@@ -11,7 +11,10 @@ target_link_libraries(lighter_core PUBLIC Qt6::Core Qt6::Gui Qt6::Concurrent)
 if(WIN32)
   target_link_libraries(lighter_core PRIVATE iphlpapi ws2_32)
 endif()
-add_library(lighter_ui native/window.cpp native/editor.cpp native/theme.cpp)
+add_library(lighter_ui native/window.cpp native/editor.cpp native/theme.cpp
+  native/styles/styles.qrc
+  native/vendor/qdarkstyle/dark/darkstyle.qrc
+  native/vendor/qdarkstyle/light/lightstyle.qrc)
 target_link_libraries(lighter_ui PUBLIC lighter_core Qt6::Widgets)
 execute_process(COMMAND git rev-parse --short HEAD WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   OUTPUT_VARIABLE LIGHTER_GIT_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
@@ -41,6 +44,8 @@ include(GNUInstallDirs)
 set(CMAKE_INSTALL_DEFAULT_DIRECTORY_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 install(TARGETS lighter RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
   PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+install(FILES native/vendor/qdarkstyle/LICENSE.rst native/vendor/qdarkstyle/NOTICE.md
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/lighter/qdarkstyle)
 if(WIN32)
   qt_generate_deploy_app_script(TARGET lighter OUTPUT_SCRIPT deploy_script NO_UNSUPPORTED_PLATFORM_ERROR)
   install(SCRIPT ${deploy_script})
@@ -50,7 +55,7 @@ else()
 endif()
 set(CPACK_PACKAGE_NAME "dream-reflex-lighter")
 set(CPACK_PACKAGE_VENDOR "DreamReflex")
-set(CPACK_PACKAGE_CONTACT "dreamreflex@users.noreply.github.com")
+set(CPACK_PACKAGE_CONTACT "phil616@users.noreply.github.com")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Native Qt project launcher")
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
 set(CPACK_PACKAGE_INSTALL_DIRECTORY "DreamReflexLighter")
