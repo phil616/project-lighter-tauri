@@ -58,7 +58,7 @@ jobs:
         working-directory: build
         run: cpack -C Release
       - name: Deploy runtime directory
-        run: cmake --install build --config Release --prefix stage
+        run: cmake --install build --config Release --prefix "${{ github.workspace }}/stage"
       - name: Upload runtime directory
         uses: actions/upload-artifact@v4
         with:

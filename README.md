@@ -47,7 +47,13 @@ C:/Qt/6.8.3/msvc2022_64/bin/windeployqt.exe build/Release/lighter.exe
 ./build/Release/lighter.exe
 ```
 
-只需要免安装运行目录时，可执行 `cmake --install build --config Release --prefix release-windows`，
+只需要免安装运行目录时，传入绝对路径作为部署前缀（Qt 部署脚本生成 `qt.conf` 时需要）：
+
+```powershell
+$deployPath = Join-Path (Get-Location).Path "release-windows"
+cmake --install build --config Release --prefix "$deployPath"
+```
+
 然后启动 `release-windows/bin/lighter.exe`。移动时保留整个目录中的 DLL、插件和 `qt.conf`。
 也可在 GitHub Actions 手动运行 **Windows Portable Build**，下载 `lighter-windows-x64-portable` 构建产物。
 

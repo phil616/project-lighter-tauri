@@ -36,7 +36,7 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
       - name: Deploy portable executable and runtime
-        run: cmake --install build --prefix dist/windows
+        run: cmake --install build --prefix "${{ github.workspace }}/dist/windows"
       - name: Upload portable directory
         uses: actions/upload-artifact@v4
         with:
